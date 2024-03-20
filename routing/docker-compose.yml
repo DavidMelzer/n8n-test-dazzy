@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  # Security upgrade via Docker socket proxy:
+  # https://www.smarthomebeginner.com/traefik-docker-security-best-practices/
+  socket-proxy:
+    image: tecnativa/docker-socket-proxy
+    container_name: socket-proxy
+    restart: unless-stopped
+    networks:
+      - socket-proxy-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - LOG_LEVEL=warning
+      - CONTAINERS=1   # Traefik needs access to this
+
+  traefik:
+    image: traefik:v2.9
+    container_name: traefik
+    restart: unless-stopped
+    depends_on:
+      - socket-proxy
+    volumes:
+      - ./traefik.toml:/etc/traefik/traefik.toml:ro
+      - traefik-acme:/etc/traefik/acme
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - socket-proxy-network
+      - web-access
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`panel.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=username:password"
+      # TODO: replace username and password with actual values. See docs: https://doc.traefik.io/traefik/middlewares/http/basicauth/
+      # Hint: You can use `htpasswd` to generate the password: `htpasswd -nB <username>`, or use a simple hash generator (https://www.md5hashgenerator.com/)
+      # Also note that $ dollar signs need to be doubled in a docker-compose file to escape them being read as variables.
+
+networks:
+  socket-proxy-network:
+    name: socket-proxy-network
+    driver: bridge
+  web-access:
+    name: web-access
+    driver: bridge
+
+volumes:
+  traefik-acme:
+
+# Inspired by https://github.com/PythonicAccountant/traefik-docker-socket-proxy-docker-compose-example/blob/master/docker-compose.yml

@@ -1,0 +1,38 @@
+[log]
+level = "ERROR"
+
+[entryPoints]
+    [entryPoints.web]
+    address = ":80"
+    [entryPoints.web.http.redirections.entryPoint]
+      to = "websecure"
+      scheme = "https"
+
+    [entryPoints.websecure]
+    address = ":443"
+
+[certificatesResolvers.letsencrypt.acme]
+    email = "hello@davidmelzer.codes"
+    # TODO: Replace with your own email
+    storage = "/etc/traefik/acme/acme.json"
+    # caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+    # TODO: comment out the caServer line for production
+    # This is the staging server of Let's Encrypt for testing purposes, as the main server has a rate limit.
+    [certificatesResolvers.letsencrypt.acme.tlsChallenge]
+
+[api]
+dashboard = true
+
+# Rate Limit to prevent brute force: https://doc.traefik.io/traefik/middlewares/http/ratelimit/
+[http.middlewares]
+  [http.middlewares.defaultRateLimit.rateLimit]
+    average = 100
+    burst = 50
+
+[providers.docker]
+exposedByDefault = false
+network = "web-access"
+# So that Traefik can listen to the Docker events through the proxy:
+endpoint = "tcp://socket-proxy:2375"
+
+# Inspired by https://www.leonpahole.com/blog/traefik-basic-setup
